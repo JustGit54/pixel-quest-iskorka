@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { StatusBar } from '@capacitor/status-bar';
+import { pixelAudio } from './game/audio';
 import { PixelQuestScene } from './game/PixelQuestScene';
 import { WORLDS } from './game/content';
 import { loadSave, resetSave } from './game/save';
@@ -15,6 +16,7 @@ const byId = <T extends HTMLElement>(id: string): T => document.getElementById(i
 const menu = byId<HTMLElement>('menu'), dialog = byId<HTMLElement>('dialog'), hud = byId<HTMLElement>('hud'), controls = byId<HTMLElement>('touch-controls');
 const worldName = byId<HTMLElement>('world-name'), hearts = byId<HTMLElement>('hearts'), sparks = byId<HTMLElement>('spark-count'), worldSelect = byId<HTMLElement>('world-select');
 const dialogKicker = byId<HTMLElement>('dialog-kicker'), dialogTitle = byId<HTMLElement>('dialog-title'), dialogText = byId<HTMLElement>('dialog-text'), dialogAction = byId<HTMLButtonElement>('dialog-action');
+const audioButtons = document.querySelectorAll<HTMLButtonElement>('[data-audio-toggle]');
 let selectedWorld = loadSave().unlockedWorld;
 let activeDialog: DialogAction = 'menu';
 
@@ -24,8 +26,9 @@ void StatusBar.hide().catch(() => undefined);
 
 const setPlayUi = (isPlaying: boolean): void => { hud.classList.toggle('is-hidden', !isPlaying); controls.classList.toggle('is-hidden', !isPlaying); };
 const currentScene = (): PixelQuestScene => game.scene.getScene('PixelQuestScene') as PixelQuestScene;
-function openMenu(): void { menu.classList.remove('is-hidden'); dialog.classList.add('is-hidden'); setPlayUi(false); renderWorlds(); }
-function startGame(world: number): void { menu.classList.add('is-hidden'); dialog.classList.add('is-hidden'); setPlayUi(true); currentScene().startWorld(world); }
+function updateAudioButtons(): void { audioButtons.forEach((button) => { const iconOnly = button.classList.contains('icon-button'); button.textContent = pixelAudio.isMuted ? (iconOnly ? '🔇' : '🔇 ЗВУК: ВЫКЛ') : (iconOnly ? '🔊' : '🔊 ЗВУК: ВКЛ'); button.setAttribute('aria-label', pixelAudio.isMuted ? 'Включить звук' : 'Выключить звук'); }); }
+function openMenu(): void { menu.classList.remove('is-hidden'); dialog.classList.add('is-hidden'); setPlayUi(false); pixelAudio.setDucked(false); pixelAudio.playMusic('menu'); renderWorlds(); }
+function startGame(world: number): void { menu.classList.add('is-hidden'); dialog.classList.add('is-hidden'); setPlayUi(true); pixelAudio.play('ui'); currentScene().startWorld(world); }
 
 function renderWorlds(): void {
   const save = loadSave(); selectedWorld = Math.min(selectedWorld, save.unlockedWorld);
@@ -35,7 +38,7 @@ function renderWorlds(): void {
     const unlocked = index <= save.unlockedWorld; button.disabled = !unlocked;
     button.className = `world-card${selectedWorld === index ? ' selected' : ''}${unlocked ? '' : ' locked'}`;
     button.innerHTML = `<span class="world-number">${unlocked ? '✦' : '🔒'}</span><span>${world.subtitle}</span><strong>${world.name}</strong>`;
-    button.addEventListener('click', () => { if (unlocked) { selectedWorld = index; renderWorlds(); } }); worldSelect.appendChild(button);
+    button.addEventListener('click', () => { if (unlocked) { pixelAudio.play('ui'); selectedWorld = index; renderWorlds(); } }); worldSelect.appendChild(button);
   });
 }
 
@@ -46,10 +49,12 @@ game.events.on('pixelquest-ui', (event: UiEvent) => {
 });
 
 byId<HTMLButtonElement>('play-button').addEventListener('click', () => startGame(selectedWorld));
-byId<HTMLButtonElement>('reset-button').addEventListener('click', () => { resetSave(); selectedWorld = 0; renderWorlds(); });
+byId<HTMLButtonElement>('reset-button').addEventListener('click', () => { pixelAudio.play('reset'); resetSave(); selectedWorld = 0; renderWorlds(); });
 byId<HTMLButtonElement>('pause-button').addEventListener('click', () => currentScene().pauseGame());
-byId<HTMLButtonElement>('dialog-menu').addEventListener('click', openMenu);
-dialogAction.addEventListener('click', () => { dialog.classList.add('is-hidden'); if (activeDialog === 'menu') openMenu(); else currentScene().resolveDialog(activeDialog); });
+byId<HTMLButtonElement>('dialog-menu').addEventListener('click', () => { pixelAudio.play('ui'); openMenu(); });
+dialogAction.addEventListener('click', () => { dialog.classList.add('is-hidden'); if (activeDialog === 'menu') { pixelAudio.play('ui'); openMenu(); } else currentScene().resolveDialog(activeDialog); });
+
+audioButtons.forEach((button) => button.addEventListener('click', () => { pixelAudio.toggleMuted(); updateAudioButtons(); if (!pixelAudio.isMuted) pixelAudio.play('ui'); }));
 
 document.querySelectorAll<HTMLButtonElement>('[data-control]').forEach((button) => {
   const action = button.dataset.control as 'left' | 'right' | 'jump';
@@ -58,4 +63,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-control]').forEach((button) 
   ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => button.addEventListener(type, () => send(false)));
 });
 
+pixelAudio.playMusic('menu');
+window.addEventListener('pointerdown', () => { void pixelAudio.unlock(); }, { once: true, capture: true });
+updateAudioButtons();
 renderWorlds();
