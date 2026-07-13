@@ -13,7 +13,7 @@
 
       <header id="hud" class="ui-layer is-hidden" aria-live="polite">
         <div class="hud-left"><span id="world-name" class="chip"></span><span id="hearts" class="chip"></span></div>
-        <div class="hud-right"><span id="spark-count" class="chip"></span><button id="pause-button" class="icon-button" aria-label="Поставить игру на паузу">Ⅱ</button></div>
+        <div class="hud-right"><span id="spark-count" class="chip"></span><button data-audio-toggle class="icon-button" aria-label="Выключить звук">🔊</button><button id="pause-button" class="icon-button" aria-label="Поставить игру на паузу">Ⅱ</button></div>
       </header>
 
       <section id="menu" class="screen">
@@ -25,6 +25,7 @@
           <div id="world-select" class="world-select" aria-label="Выбор мира"></div>
           <button id="play-button" class="primary-button">НАЧАТЬ ПРИКЛЮЧЕНИЕ</button>
           <button id="reset-button" class="secondary-button">СБРОСИТЬ ПРОГРЕСС</button>
+          <button data-audio-toggle class="secondary-button audio-toggle">🔊 ЗВУК: ВКЛ</button>
           <p class="help">Кнопки ◀ ▶ — движение, ▲ — прыжок. Прыгай на врагов и собирай искры.</p>
         </div>
       </section>
@@ -35,6 +36,7 @@
           <h2 id="dialog-title"></h2>
           <p id="dialog-text" class="story"></p>
           <button id="dialog-action" class="primary-button"></button>
+          <button data-audio-toggle class="secondary-button audio-toggle">🔊 ЗВУК: ВКЛ</button>
           <button id="dialog-menu" class="secondary-button">В МЕНЮ</button>
         </div>
       </section>
