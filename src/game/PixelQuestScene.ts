@@ -40,9 +40,23 @@ export class PixelQuestScene extends Phaser.Scene {
 
   init(data: { worldIndex?: number } = {}): void {
     this.worldIndex = Phaser.Math.Clamp(data.worldIndex ?? 0, 0, WORLDS.length - 1);
+    // A Phaser scene instance is reused after restart. Reset every run-specific
+    // value here so a completed, paused, or failed level never freezes the next one.
+    this.controls = { left: false, right: false, jump: false };
+    this.jumpQueued = false;
+    this.hearts = 3;
+    this.coinsFound = 0;
+    this.crystalFound = false;
+    this.bossHp = 4;
+    this.bossAttackAt = 0;
+    this.invulnerableUntil = 0;
+    this.paused = false;
+    this.crystal = undefined;
+    this.boss = undefined;
   }
 
   create(): void {
+    this.physics.world.resume();
     this.world = WORLDS[this.worldIndex];
     this.createTextures();
     this.drawBackground();
@@ -254,7 +268,7 @@ export class PixelQuestScene extends Phaser.Scene {
     this.player.setPosition(this.world.start.x, this.world.start.y).setVelocity(0, 0).setAlpha(0.35); this.time.delayedCall(1250, () => this.player?.setAlpha(1));
   }
 
-  private emitHud(): void { this.game.events.emit('pixelquest-ui', { type: 'hud', world: this.world, hearts: this.hearts, coins: this.coinsFound, totalCoins: this.world.coins.length + 5, bossHp: this.boss ? this.bossHp : undefined } satisfies UiEvent); }
+  private emitHud(): void { this.game.events.emit('pixelquest-ui', { type: 'hud', world: this.world, hearts: this.hearts, coins: this.coinsFound, totalCoins: this.world.coins.length, bossHp: this.boss ? this.bossHp : undefined } satisfies UiEvent); }
   private toast(text: string): void { this.game.events.emit('pixelquest-ui', { type: 'toast', text } satisfies UiEvent); }
   private dialog(kicker: string, title: string, text: string, action: 'resume' | 'restart' | 'next' | 'menu', actionLabel: string): void { this.game.events.emit('pixelquest-ui', { type: 'dialog', kicker, title, text, action, actionLabel } satisfies UiEvent); }
   private vibrate(style: ImpactStyle): void { void Haptics.impact({ style }).catch(() => undefined); }
