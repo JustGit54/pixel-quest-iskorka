@@ -1,0 +1,46 @@
+name: Build Pixel Quest APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    name: Android debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Получить исходники
+        uses: actions/checkout@v4
+
+      - name: Установить Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Установить зависимости
+        run: npm install --no-audit --no-fund
+
+      - name: Собрать игру
+        run: npm run build
+
+      - name: Создать Android-проект
+        run: |
+          npx cap add android
+          npm run android:prepare
+          npx cap sync android
+
+      - name: Собрать APK
+        working-directory: android
+        run: ./gradlew --no-daemon assembleDebug
+
+      - name: Сохранить установочный APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: PixelQuest-Iskorka-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
