@@ -22,6 +22,19 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Установить Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Настроить Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Установить Android SDK 36
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
       - name: Установить зависимости
         run: npm ci --no-audit --no-fund
 
@@ -36,7 +49,9 @@ jobs:
 
       - name: Собрать APK
         working-directory: android
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon --stacktrace assembleDebug
 
       - name: Сохранить установочный APK
         uses: actions/upload-artifact@v4
