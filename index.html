@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#12092b" />
+    <meta name="description" content="Pixel Quest: Искорка — яркое пиксельное приключение." />
+    <title>Pixel Quest: Искорка</title>
+  </head>
+  <body>
+    <div id="app">
+      <div id="game" aria-label="Pixel Quest: Искорка"></div>
+
+      <header id="hud" class="ui-layer is-hidden" aria-live="polite">
+        <div class="hud-left"><span id="world-name" class="chip"></span><span id="hearts" class="chip"></span></div>
+        <div class="hud-right"><span id="spark-count" class="chip"></span><button id="pause-button" class="icon-button" aria-label="Поставить игру на паузу">Ⅱ</button></div>
+      </header>
+
+      <section id="menu" class="screen">
+        <div class="panel menu-panel">
+          <p class="eyebrow">PIXEL QUEST</p>
+          <h1>ИСКОРКА</h1>
+          <p class="tagline">ХРАНИТЕЛЬНИЦА СВЕТА</p>
+          <p class="story">Тень расколола Сердце Света на три осколка. Пройди через Лес Люмии, Пещеры Эха и Небесный Замок, чтобы вернуть миру его краски.</p>
+          <div id="world-select" class="world-select" aria-label="Выбор мира"></div>
+          <button id="play-button" class="primary-button">НАЧАТЬ ПРИКЛЮЧЕНИЕ</button>
+          <button id="reset-button" class="secondary-button">СБРОСИТЬ ПРОГРЕСС</button>
+          <p class="help">Кнопки ◀ ▶ — движение, ▲ — прыжок. Прыгай на врагов и собирай искры.</p>
+        </div>
+      </section>
+
+      <section id="dialog" class="screen is-hidden" aria-modal="true" role="dialog">
+        <div class="panel dialog-panel">
+          <p id="dialog-kicker" class="eyebrow"></p>
+          <h2 id="dialog-title"></h2>
+          <p id="dialog-text" class="story"></p>
+          <button id="dialog-action" class="primary-button"></button>
+          <button id="dialog-menu" class="secondary-button">В МЕНЮ</button>
+        </div>
+      </section>
+
+      <nav id="touch-controls" class="ui-layer is-hidden" aria-label="Сенсорное управление">
+        <div class="control-cluster"><button data-control="left" class="control" aria-label="Влево">◀</button><button data-control="right" class="control" aria-label="Вправо">▶</button></div>
+        <button data-control="jump" class="control jump" aria-label="Прыжок">▲</button>
+      </nav>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
