@@ -6,7 +6,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-android:
@@ -58,3 +58,15 @@ jobs:
           name: PixelQuest-Iskorka-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Опубликовать APK для прямого скачивания
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_tag="apk-${GITHUB_SHA::7}"
+          cp android/app/build/outputs/apk/debug/app-debug.apk PixelQuest-Iskorka.apk
+          gh release create "$release_tag" PixelQuest-Iskorka.apk \
+            --target "$GITHUB_SHA" \
+            --title "Pixel Quest: Искорка — Android APK" \
+            --notes "Автоматическая тестовая Android-сборка с оригинальным саунд-дизайном." \
+            --prerelease
