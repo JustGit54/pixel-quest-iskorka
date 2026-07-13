@@ -1,9 +1,11 @@
 import Phaser from 'phaser';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
+import { pixelAudio, type MusicTheme } from './audio';
 import { WORLD_HEIGHT, WORLD_WIDTH, WORLDS, type WorldDef } from './content';
 import { loadSave, storeSave } from './save';
 
 type Control = 'left' | 'right' | 'jump';
+const WORLD_MUSIC: MusicTheme[] = ['forest', 'caves', 'castle'];
 type UiEvent =
   | { type: 'hud'; world: WorldDef; hearts: number; coins: number; totalCoins: number; bossHp?: number }
   | { type: 'toast'; text: string }
@@ -28,6 +30,8 @@ export class PixelQuestScene extends Phaser.Scene {
   private bossHp = 4;
   private bossAttackAt = 0;
   private invulnerableUntil = 0;
+  private nextFootstepAt = 0;
+  private portalFeedbackAt = 0;
   private paused = false;
   private readonly onControl = (event: Event): void => {
     const detail = (event as CustomEvent<{ action: Control; pressed: boolean }>).detail;
@@ -50,6 +54,8 @@ export class PixelQuestScene extends Phaser.Scene {
     this.bossHp = 4;
     this.bossAttackAt = 0;
     this.invulnerableUntil = 0;
+    this.nextFootstepAt = 0;
+    this.portalFeedbackAt = 0;
     this.paused = false;
     this.crystal = undefined;
     this.boss = undefined;
@@ -75,6 +81,8 @@ export class PixelQuestScene extends Phaser.Scene {
     this.cameras.main.startFollow(this.player, true, 0.09, 0.09, -120, 90);
     this.cameras.main.setDeadzone(180, 90);
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT + 200);
+    pixelAudio.setDucked(false);
+    pixelAudio.playMusic(WORLD_MUSIC[this.worldIndex]);
     this.emitHud();
     this.toast(this.world.story);
   }
@@ -85,11 +93,13 @@ export class PixelQuestScene extends Phaser.Scene {
     if (this.paused) return;
     this.paused = true;
     this.physics.world.pause();
+    pixelAudio.play('pause');
+    pixelAudio.setDucked(true);
     this.dialog('ПАУЗА', 'Свет ждёт тебя', 'Продолжим путь Искорки?', 'resume', 'ПРОДОЛЖИТЬ');
   }
 
   resolveDialog(action: 'resume' | 'restart' | 'next' | 'menu'): void {
-    if (action === 'resume') { this.paused = false; this.physics.world.resume(); return; }
+    if (action === 'resume') { this.paused = false; this.physics.world.resume(); pixelAudio.play('resume'); pixelAudio.setDucked(false); return; }
     if (action === 'restart') { this.startWorld(this.worldIndex); return; }
     if (action === 'next') { this.startWorld(Math.min(this.worldIndex + 1, WORLDS.length - 1)); return; }
   }
@@ -184,8 +194,13 @@ export class PixelQuestScene extends Phaser.Scene {
     const body = this.player.body as Phaser.Physics.Arcade.Body;
     if (this.controls.left === this.controls.right) this.player.setVelocityX(0);
     else this.player.setVelocityX(this.controls.left ? -240 : 240);
-    if (this.jumpQueued && (body.blocked.down || body.touching.down)) { this.player.setVelocityY(-515); this.vibrate(ImpactStyle.Light); }
+    const grounded = body.blocked.down || body.touching.down;
+    if (this.jumpQueued && grounded) { this.player.setVelocityY(-515); this.vibrate(ImpactStyle.Light); pixelAudio.play('jump'); }
     this.jumpQueued = false;
+    if (grounded && Math.abs(body.velocity.x) > 30 && time >= this.nextFootstepAt) {
+      this.nextFootstepAt = time + 245;
+      pixelAudio.play('step', this.worldIndex);
+    }
     if (this.player.y > WORLD_HEIGHT + 150) this.hurt();
     this.updateEnemies();
     this.updateBoss(time);
@@ -210,6 +225,8 @@ export class PixelQuestScene extends Phaser.Scene {
     (this.boss.body as Phaser.Physics.Arcade.Body).setSize(42, 50).setOffset(5, 4);
     this.physics.add.collider(this.boss, this.platforms);
     this.physics.add.collider(this.player, this.boss, () => this.hitBoss());
+    pixelAudio.play('bossSpawn');
+    pixelAudio.playMusic('boss');
     this.toast('Король Тени пробудился! Прыгай ему на голову и избегай теневых сфер.');
   }
 
@@ -223,6 +240,7 @@ export class PixelQuestScene extends Phaser.Scene {
       this.bossAttackAt = time + 1350;
       const orb = this.projectiles.create(this.boss.x + direction * 34, this.boss.y - 4, 'pq-orb') as Phaser.Physics.Arcade.Sprite;
       orb.setVelocity(direction * 210, -35).setDepth(7); (orb.body as Phaser.Physics.Arcade.Body).setAllowGravity(false);
+      pixelAudio.play('bossShoot');
       this.time.delayedCall(3600, () => orb.active && orb.destroy());
     }
   }
@@ -230,32 +248,39 @@ export class PixelQuestScene extends Phaser.Scene {
   private collect(item: Phaser.Physics.Arcade.Sprite): void {
     const kind = item.getData('kind') as string;
     item.destroy();
-    if (kind === 'coin') { this.coinsFound++; this.vibrate(ImpactStyle.Light); }
+    if (kind === 'coin') { this.coinsFound++; this.vibrate(ImpactStyle.Light); pixelAudio.play('coin'); }
     else {
       this.crystalFound = true; this.portal.setTint(this.world.palette.accent); this.vibrate(ImpactStyle.Medium);
+      pixelAudio.play('crystal');
       this.toast(this.world.boss ? 'Осколок найден! Теперь победи Короля Тени.' : 'Осколок Света найден! Портал открыт.');
-      this.spawnBoss();
+      if (this.world.boss) this.time.delayedCall(280, () => this.spawnBoss());
+      else pixelAudio.play('portalOpen');
     }
     this.emitHud();
   }
 
   private hitEnemy(enemy: Phaser.Physics.Arcade.Sprite): void {
-    if ((this.player.body as Phaser.Physics.Arcade.Body).velocity.y > 100 && this.player.y < enemy.y) { enemy.destroy(); this.player.setVelocityY(-355); this.vibrate(ImpactStyle.Medium); }
+    if ((this.player.body as Phaser.Physics.Arcade.Body).velocity.y > 100 && this.player.y < enemy.y) { enemy.destroy(); this.player.setVelocityY(-355); this.vibrate(ImpactStyle.Medium); pixelAudio.play('enemyStomp'); }
     else this.hurt();
   }
 
   private hitBoss(): void {
     if (!this.boss?.active) return;
     if ((this.player.body as Phaser.Physics.Arcade.Body).velocity.y > 110 && this.player.y < this.boss.y - 6) {
-      this.bossHp--; this.player.setVelocityY(-405); this.boss.setTintFill(0xffffff); this.time.delayedCall(120, () => this.boss?.clearTint()); this.vibrate(ImpactStyle.Heavy); this.emitHud();
-      if (this.bossHp <= 0) { this.boss.destroy(); this.boss = undefined; this.projectiles.clear(true, true); this.toast('Король Тени побеждён! Портал открыт.'); }
+      this.bossHp--; this.player.setVelocityY(-405); this.boss.setTintFill(0xffffff); this.time.delayedCall(120, () => this.boss?.setTint(this.world.palette.enemy)); this.vibrate(ImpactStyle.Heavy); pixelAudio.play('bossHit'); this.emitHud();
+      if (this.bossHp <= 0) {
+        this.boss.destroy(); this.boss = undefined; this.projectiles.clear(true, true); pixelAudio.stopMusic(); pixelAudio.play('bossDefeat');
+        this.time.delayedCall(650, () => pixelAudio.play('portalOpen'));
+        this.toast('Король Тени побеждён! Портал открыт.');
+      }
     } else this.hurt();
   }
 
   private tryPortal(): void {
-    if (!this.crystalFound) { this.toast('Сначала найди осколок Света.'); return; }
-    if (this.world.boss && this.boss) { this.toast('Портал запечатан. Победи Короля Тени!'); return; }
+    if (!this.crystalFound) { this.portalFeedback('Сначала найди осколок Света.'); return; }
+    if (this.world.boss && this.boss) { this.portalFeedback('Портал запечатан. Победи Короля Тени!'); return; }
     const save = loadSave(); save.unlockedWorld = Math.max(save.unlockedWorld, Math.min(2, this.worldIndex + 1)); save.bestCoins[this.worldIndex] = Math.max(save.bestCoins[this.worldIndex] ?? 0, this.coinsFound); storeSave(save);
+    pixelAudio.stopMusic(); pixelAudio.setDucked(false); pixelAudio.play('levelComplete');
     if (this.worldIndex < WORLDS.length - 1) this.dialog('ОСКОЛОК ВОЗВРАЩЁН', `Мир «${this.world.name}» спасён!`, `Следующая глава: ${WORLDS[this.worldIndex + 1].name}.`, 'next', 'В СЛЕДУЮЩИЙ МИР');
     else this.dialog('СВЕТ ВОЗВРАЩАЕТСЯ', 'Сердце Света снова цело!', 'Ты победил(а) Тень и вернул(а) краски всем трём мирам.', 'menu', 'В МЕНЮ');
     this.paused = true; this.physics.world.pause();
@@ -263,12 +288,13 @@ export class PixelQuestScene extends Phaser.Scene {
 
   private hurt(): void {
     if (this.time.now < this.invulnerableUntil || this.paused) return;
-    this.invulnerableUntil = this.time.now + 1250; this.hearts--; this.vibrate(ImpactStyle.Heavy); this.cameras.main.shake(170, 0.014); this.emitHud();
-    if (this.hearts <= 0) { this.paused = true; this.physics.world.pause(); this.dialog('СВЕТ ПОГАС', 'Но надежда осталась', 'Начни мир заново и верни Свету силу.', 'restart', 'НАЧАТЬ ЗАНОВО'); return; }
+    this.invulnerableUntil = this.time.now + 1250; this.hearts--; this.vibrate(ImpactStyle.Heavy); pixelAudio.play('hurt'); this.cameras.main.shake(170, 0.014); this.emitHud();
+    if (this.hearts <= 0) { this.paused = true; this.physics.world.pause(); pixelAudio.stopMusic(); pixelAudio.play('gameOver'); this.dialog('СВЕТ ПОГАС', 'Но надежда осталась', 'Начни мир заново и верни Свету силу.', 'restart', 'НАЧАТЬ ЗАНОВО'); return; }
     this.player.setPosition(this.world.start.x, this.world.start.y).setVelocity(0, 0).setAlpha(0.35); this.time.delayedCall(1250, () => this.player?.setAlpha(1));
   }
 
   private emitHud(): void { this.game.events.emit('pixelquest-ui', { type: 'hud', world: this.world, hearts: this.hearts, coins: this.coinsFound, totalCoins: this.world.coins.length, bossHp: this.boss ? this.bossHp : undefined } satisfies UiEvent); }
+  private portalFeedback(text: string): void { if (this.time.now < this.portalFeedbackAt) return; this.portalFeedbackAt = this.time.now + 1100; pixelAudio.play('portalLocked'); this.toast(text); }
   private toast(text: string): void { this.game.events.emit('pixelquest-ui', { type: 'toast', text } satisfies UiEvent); }
   private dialog(kicker: string, title: string, text: string, action: 'resume' | 'restart' | 'next' | 'menu', actionLabel: string): void { this.game.events.emit('pixelquest-ui', { type: 'dialog', kicker, title, text, action, actionLabel } satisfies UiEvent); }
   private vibrate(style: ImpactStyle): void { void Haptics.impact({ style }).catch(() => undefined); }
